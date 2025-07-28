@@ -17,21 +17,25 @@ export default function Home() {
   const imageContainerRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Detectar campos editáveis baseados na análise da imagem do Nubank
+  // Detectar campos editáveis baseados na proporção da imagem
   const detectEditableFields = (imageElement, containerRect) => {
-    const scaleX = imageElement.naturalWidth / containerRect.width;
-    const scaleY = imageElement.naturalHeight / containerRect.height;
+    // Calcular as proporções baseadas no tamanho real da imagem exibida
+    const displayedImg = imageContainerRef.current?.querySelector('img');
+    if (!displayedImg) return [];
     
-    // Campos baseados na análise da imagem do Nubank
+    const imgRect = displayedImg.getBoundingClientRect();
+    const containerBounds = imageContainerRef.current.getBoundingClientRect();
+    
+    // Proporções baseadas na análise da imagem do Nubank
     const fields = [
       {
         id: 'date',
         text: '27 JUL 2025',
         type: 'date',
-        x: 20 / scaleX,
-        y: 125 / scaleY,
-        width: 120 / scaleX,
-        height: 16 / scaleY,
+        x: imgRect.width * 0.06, // 6% da largura
+        y: imgRect.height * 0.10, // 10% da altura
+        width: imgRect.width * 0.35,
+        height: 20,
         fontSize: 14,
         fontFamily: 'Arial, sans-serif',
         color: '#666666',
@@ -41,10 +45,10 @@ export default function Home() {
         id: 'time',
         text: '18:04:53',
         type: 'time',
-        x: 147 / scaleX,
-        y: 125 / scaleY,
-        width: 60 / scaleX,
-        height: 16 / scaleY,
+        x: imgRect.width * 0.43,
+        y: imgRect.height * 0.10,
+        width: imgRect.width * 0.20,
+        height: 20,
         fontSize: 14,
         fontFamily: 'Arial, sans-serif',
         color: '#666666',
@@ -54,10 +58,10 @@ export default function Home() {
         id: 'value',
         text: 'R$ 100,00',
         type: 'value',
-        x: 254 / scaleX,
-        y: 175 / scaleY,
-        width: 80 / scaleX,
-        height: 18 / scaleY,
+        x: imgRect.width * 0.65,
+        y: imgRect.height * 0.15,
+        width: imgRect.width * 0.30,
+        height: 22,
         fontSize: 16,
         fontFamily: 'Arial, sans-serif',
         color: '#000000',
@@ -68,10 +72,10 @@ export default function Home() {
         id: 'recipient_name',
         text: 'PAULO TERTULIANO FREITAS DE ARAÚJO',
         type: 'name',
-        x: 114 / scaleX,
-        y: 335 / scaleY,
-        width: 220 / scaleX,
-        height: 32 / scaleY,
+        x: imgRect.width * 0.30,
+        y: imgRect.height * 0.28,
+        width: imgRect.width * 0.65,
+        height: 35,
         fontSize: 13,
         fontFamily: 'Arial, sans-serif',
         color: '#000000',
@@ -82,10 +86,10 @@ export default function Home() {
         id: 'recipient_cpf',
         text: '•••.546.681-••',
         type: 'cpf',
-        x: 236 / scaleX,
-        y: 390 / scaleY,
-        width: 98 / scaleX,
-        height: 16 / scaleY,
+        x: imgRect.width * 0.65,
+        y: imgRect.height * 0.35,
+        width: imgRect.width * 0.30,
+        height: 20,
         fontSize: 13,
         fontFamily: 'Arial, sans-serif',
         color: '#000000',
@@ -95,10 +99,10 @@ export default function Home() {
         id: 'sender_name',
         text: 'Phillip Tertuliano Lima de Araújo',
         type: 'name',
-        x: 114 / scaleX,
-        y: 676 / scaleY,
-        width: 220 / scaleX,
-        height: 16 / scaleY,
+        x: imgRect.width * 0.30,
+        y: imgRect.height * 0.60,
+        width: imgRect.width * 0.65,
+        height: 20,
         fontSize: 13,
         fontFamily: 'Arial, sans-serif',
         color: '#000000',
@@ -108,10 +112,10 @@ export default function Home() {
         id: 'sender_cpf',
         text: '•••.745.561-••',
         type: 'cpf',
-        x: 236 / scaleX,
-        y: 771 / scaleY,
-        width: 98 / scaleX,
-        height: 16 / scaleY,
+        x: imgRect.width * 0.65,
+        y: imgRect.height * 0.70,
+        width: imgRect.width * 0.30,
+        height: 20,
         fontSize: 13,
         fontFamily: 'Arial, sans-serif',
         color: '#000000',
@@ -133,15 +137,15 @@ export default function Home() {
         setImage({ element: img, file, src: e.target.result });
         setIsProcessing(true);
         
-        // Aguardar um pouco para o container ser renderizado
+        // Aguardar a imagem ser renderizada no DOM
         setTimeout(() => {
           if (imageContainerRef.current) {
-            const containerRect = imageContainerRef.current.getBoundingClientRect();
-            const fields = detectEditableFields(img, containerRect);
+            const fields = detectEditableFields(img, null);
+            console.log('Campos detectados:', fields.length); // Debug
             setEditableFields(fields);
           }
           setIsProcessing(false);
-        }, 100);
+        }, 500); // Aumentei o tempo para garantir que a imagem seja renderizada
       };
       img.src = e.target.result;
     };
