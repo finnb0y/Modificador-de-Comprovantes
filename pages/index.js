@@ -12,17 +12,17 @@ export default function NubankReceiptGenerator() {
     value: 'R$ 100,00',
     
     // Destino
-    recipientName: 'PAULO TERTULIANO FREITAS DE ARAÚJO',
-    recipientCPF: '546.681',
+    recipientName: 'JOÃOZINHO VENCEDOR CARVALHO DA SILVA',
+    recipientCPF: '123.456',
     recipientInstitution: 'BCO SANTANDER (BRASIL) S.A.',
-    recipientAgency: '3067',
-    recipientAccount: '1086593-4',
+    recipientAgency: '1234',
+    recipientAccount: '1234567-8',
     recipientAccountType: 'Conta corrente',
     
     // Origem
-    senderName: 'Phillip Tertuliano Lima de Araújo',
-    senderAccount: '7141334-7',
-    senderCPF: '745.561',
+    senderName: 'Pedrinho Mono Bola de Alves',
+    senderAccount: '2345678-9',
+    senderCPF: '456.789',
     
     // ID da transação
     transactionId: 'E18236120202507272104e0120d761f9'
