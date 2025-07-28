@@ -1,42 +1,125 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Head from 'next/head';
-import { Upload, Download, Edit3, Calendar, DollarSign, User, Wand2 } from 'lucide-react';
+import { Upload, Download, Edit3, Save, X, Check } from 'lucide-react';
 
 export default function Home() {
   const [image, setImage] = useState(null);
-  const [modifiedImage, setModifiedImage] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [detectedTexts, setDetectedTexts] = useState([]);
-  const [modifications, setModifications] = useState({
-    value: '',
-    date: '',
-    name: ''
-  });
-  const [dateFormat, setDateFormat] = useState('DD/MM/YYYY');
+  const [editableFields, setEditableFields] = useState([]);
+  const [selectedField, setSelectedField] = useState(null);
+  const [editingField, setEditingField] = useState(null);
+  const [tempValue, setTempValue] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
   
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
+  const imageContainerRef = useRef(null);
+  const inputRef = useRef(null);
 
-  // Detectar textos na imagem usando Canvas e simulação de OCR
-  const detectTextsInImage = async (imageElement) => {
-    return new Promise((resolve) => {
-      // Simulação de detecção de texto - em produção, usaria uma API de OCR
-      const mockTexts = [
-        { text: '1.250,50', type: 'value', x: 300, y: 200, width: 80, height: 20 },
-        { text: '27/07/2025', type: 'date', x: 250, y: 150, width: 100, height: 18 },
-        { text: 'JOÃO SILVA', type: 'name', x: 200, y: 100, width: 120, height: 16 }
-      ];
-      
-      // Detectar formato de data
-      const dateText = mockTexts.find(t => t.type === 'date')?.text || '';
-      if (dateText.includes('JUL') || dateText.includes('JAN') || dateText.includes('FEV')) {
-        setDateFormat('DD MMM YYYY');
-      } else {
-        setDateFormat('DD/MM/YYYY');
+  // Detectar campos editáveis baseados na análise da imagem do Nubank
+  const detectEditableFields = (imageElement, containerRect) => {
+    const scaleX = imageElement.naturalWidth / containerRect.width;
+    const scaleY = imageElement.naturalHeight / containerRect.height;
+    
+    // Campos baseados na análise da imagem do Nubank
+    const fields = [
+      {
+        id: 'date',
+        text: '27 JUL 2025',
+        type: 'date',
+        x: 20 / scaleX,
+        y: 125 / scaleY,
+        width: 120 / scaleX,
+        height: 16 / scaleY,
+        fontSize: 14,
+        fontFamily: 'Arial, sans-serif',
+        color: '#666666',
+        textAlign: 'left'
+      },
+      {
+        id: 'time',
+        text: '18:04:53',
+        type: 'time',
+        x: 147 / scaleX,
+        y: 125 / scaleY,
+        width: 60 / scaleX,
+        height: 16 / scaleY,
+        fontSize: 14,
+        fontFamily: 'Arial, sans-serif',
+        color: '#666666',
+        textAlign: 'left'
+      },
+      {
+        id: 'value',
+        text: 'R$ 100,00',
+        type: 'value',
+        x: 254 / scaleX,
+        y: 175 / scaleY,
+        width: 80 / scaleX,
+        height: 18 / scaleY,
+        fontSize: 16,
+        fontFamily: 'Arial, sans-serif',
+        color: '#000000',
+        textAlign: 'right',
+        fontWeight: 'bold'
+      },
+      {
+        id: 'recipient_name',
+        text: 'PAULO TERTULIANO FREITAS DE ARAÚJO',
+        type: 'name',
+        x: 114 / scaleX,
+        y: 335 / scaleY,
+        width: 220 / scaleX,
+        height: 32 / scaleY,
+        fontSize: 13,
+        fontFamily: 'Arial, sans-serif',
+        color: '#000000',
+        textAlign: 'right',
+        multiline: true
+      },
+      {
+        id: 'recipient_cpf',
+        text: '•••.546.681-••',
+        type: 'cpf',
+        x: 236 / scaleX,
+        y: 390 / scaleY,
+        width: 98 / scaleX,
+        height: 16 / scaleY,
+        fontSize: 13,
+        fontFamily: 'Arial, sans-serif',
+        color: '#000000',
+        textAlign: 'right'
+      },
+      {
+        id: 'sender_name',
+        text: 'Phillip Tertuliano Lima de Araújo',
+        type: 'name',
+        x: 114 / scaleX,
+        y: 676 / scaleY,
+        width: 220 / scaleX,
+        height: 16 / scaleY,
+        fontSize: 13,
+        fontFamily: 'Arial, sans-serif',
+        color: '#000000',
+        textAlign: 'right'
+      },
+      {
+        id: 'sender_cpf',
+        text: '•••.745.561-••',
+        type: 'cpf',
+        x: 236 / scaleX,
+        y: 771 / scaleY,
+        width: 98 / scaleX,
+        height: 16 / scaleY,
+        fontSize: 13,
+        fontFamily: 'Arial, sans-serif',
+        color: '#000000',
+        textAlign: 'right'
       }
-      
-      setTimeout(() => resolve(mockTexts), 1000);
-    });
+    ];
+
+    return fields;
   };
 
   const handleImageUpload = async (event) => {
@@ -44,44 +127,72 @@ export default function Home() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = (e) => {
       const img = new Image();
-      img.onload = async () => {
-        setImage({ element: img, file });
+      img.onload = () => {
+        setImage({ element: img, file, src: e.target.result });
         setIsProcessing(true);
         
-        try {
-          const texts = await detectTextsInImage(img);
-          setDetectedTexts(texts);
-        } catch (error) {
-          console.error('Erro ao detectar textos:', error);
-        } finally {
+        // Aguardar um pouco para o container ser renderizado
+        setTimeout(() => {
+          if (imageContainerRef.current) {
+            const containerRect = imageContainerRef.current.getBoundingClientRect();
+            const fields = detectEditableFields(img, containerRect);
+            setEditableFields(fields);
+          }
           setIsProcessing(false);
-        }
+        }, 100);
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   };
 
-  const formatDate = (dateString, format) => {
-    if (!dateString) return '';
+  const handleFieldClick = (field) => {
+    setSelectedField(field.id);
+    setEditingField(field.id);
+    setTempValue(field.text);
     
-    const months = {
-      '01': 'JAN', '02': 'FEV', '03': 'MAR', '04': 'ABR',
-      '05': 'MAI', '06': 'JUN', '07': 'JUL', '08': 'AGO',
-      '09': 'SET', '10': 'OUT', '11': 'NOV', '12': 'DEZ'
-    };
-    
-    if (format === 'DD MMM YYYY') {
-      const [day, month, year] = dateString.split('/');
-      return `${day} ${months[month]} ${year}`;
-    }
-    
-    return dateString;
+    // Focar no input após um pequeno delay
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.select();
+      }
+    }, 10);
   };
 
-  const applyModifications = async () => {
+  const handleFieldUpdate = () => {
+    if (!editingField || !tempValue.trim()) return;
+    
+    setEditableFields(prev => 
+      prev.map(field => 
+        field.id === editingField 
+          ? { ...field, text: tempValue.trim() }
+          : field
+      )
+    );
+    
+    setEditingField(null);
+    setSelectedField(null);
+    setTempValue('');
+  };
+
+  const handleFieldCancel = () => {
+    setEditingField(null);
+    setSelectedField(null);
+    setTempValue('');
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleFieldUpdate();
+    } else if (e.key === 'Escape') {
+      handleFieldCancel();
+    }
+  };
+
+  const generatePreview = async () => {
     if (!image?.element || !canvasRef.current) return;
 
     setIsProcessing(true);
@@ -89,61 +200,81 @@ export default function Home() {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     
-    // Configurar canvas com o tamanho da imagem
-    canvas.width = image.element.width;
-    canvas.height = image.element.height;
+    // Configurar canvas com alta qualidade
+    canvas.width = image.element.naturalWidth;
+    canvas.height = image.element.naturalHeight;
     
     // Desenhar imagem original
     ctx.drawImage(image.element, 0, 0);
     
-    // Aplicar modificações
-    detectedTexts.forEach(textItem => {
-      let newText = '';
+    // Aplicar modificações mantendo formatação original
+    editableFields.forEach(field => {
+      const originalField = detectEditableFields(image.element, { width: canvas.width, height: canvas.height })
+        .find(f => f.id === field.id);
       
-      // Determinar o novo texto baseado no tipo
-      switch (textItem.type) {
-        case 'value':
-          newText = modifications.value || textItem.text;
-          break;
-        case 'date':
-          newText = modifications.date ? formatDate(modifications.date, dateFormat) : textItem.text;
-          break;
-        case 'name':
-          newText = modifications.name || textItem.text;
-          break;
-        default:
-          newText = textItem.text;
-      }
-      
-      if (newText !== textItem.text) {
-        // Remover texto original (aproximação com retângulo branco)
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(textItem.x - 2, textItem.y - textItem.height, textItem.width + 4, textItem.height + 4);
+      if (originalField && field.text !== originalField.text) {
+        // Calcular posições reais no canvas
+        const realX = field.x * (canvas.width / imageContainerRef.current?.offsetWidth || 1);
+        const realY = field.y * (canvas.height / imageContainerRef.current?.offsetHeight || 1);
+        const realWidth = field.width * (canvas.width / imageContainerRef.current?.offsetWidth || 1);
+        const realHeight = field.height * (canvas.height / imageContainerRef.current?.offsetHeight || 1);
         
-        // Configurar fonte similar ao original
-        ctx.fillStyle = '#000000';
-        ctx.font = `${textItem.height}px Arial, sans-serif`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'bottom';
+        // Limpar área do texto original
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(realX - 2, realY - realHeight, realWidth + 4, realHeight + 4);
+        
+        // Configurar fonte idêntica ao original
+        const fontSize = field.fontSize * (canvas.width / 340); // Ajustar escala
+        ctx.font = `${field.fontWeight || 'normal'} ${fontSize}px ${field.fontFamily}`;
+        ctx.fillStyle = field.color;
+        ctx.textAlign = field.textAlign;
+        ctx.textBaseline = 'top';
         
         // Desenhar novo texto
-        ctx.fillText(newText, textItem.x, textItem.y);
+        if (field.multiline && field.text.length > 25) {
+          // Quebrar texto em múltiplas linhas se necessário
+          const words = field.text.split(' ');
+          let line = '';
+          let y = realY - realHeight + 2;
+          
+          for (let n = 0; n < words.length; n++) {
+            const testLine = line + words[n] + ' ';
+            const metrics = ctx.measureText(testLine);
+            const testWidth = metrics.width;
+            
+            if (testWidth > realWidth && n > 0) {
+              ctx.fillText(line, field.textAlign === 'right' ? realX + realWidth : realX, y);
+              line = words[n] + ' ';
+              y += fontSize + 2;
+            } else {
+              line = testLine;
+            }
+          }
+          ctx.fillText(line, field.textAlign === 'right' ? realX + realWidth : realX, y);
+        } else {
+          ctx.fillText(
+            field.text, 
+            field.textAlign === 'right' ? realX + realWidth : realX, 
+            realY - realHeight + 2
+          );
+        }
       }
     });
     
-    // Converter canvas para imagem
+    // Converter para imagem
     canvas.toBlob((blob) => {
       const url = URL.createObjectURL(blob);
-      setModifiedImage(url);
+      setPreviewImage(url);
+      setShowPreview(true);
       setIsProcessing(false);
-    }, 'image/png');
+    }, 'image/png', 1.0);
   };
 
   const downloadImage = () => {
-    if (!modifiedImage) return;
+    if (!previewImage) return;
     
     const link = document.createElement('a');
-    link.href = modifiedImage;
+    link.href = previewImage;
     link.download = 'comprovante_modificado.png';
     document.body.appendChild(link);
     link.click();
@@ -152,10 +283,11 @@ export default function Home() {
 
   const resetAll = () => {
     setImage(null);
-    setModifiedImage(null);
-    setDetectedTexts([]);
-    setModifications({ value: '', date: '', name: '' });
-    setDateFormat('DD/MM/YYYY');
+    setEditableFields([]);
+    setSelectedField(null);
+    setEditingField(null);
+    setShowPreview(false);
+    setPreviewImage(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -178,202 +310,238 @@ export default function Home() {
               Modificador de Comprovantes
             </h1>
             <p className="text-gray-600 text-lg">
-              Modifique valores, datas e nomes em comprovantes mantendo a formatação original
+              Clique nos campos da imagem para editá-los diretamente
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Painel de Upload e Controles */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
-                <Upload className="text-blue-600" />
-                Upload e Configuração
-              </h2>
+          {!showPreview ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Painel de Upload */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
+                  <Upload className="text-blue-600" />
+                  Upload do Comprovante
+                </h2>
 
-              {!image ? (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors upload-area">
-                  <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                  <p className="text-gray-600 mb-4">Clique para enviar um comprovante</p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Escolher Arquivo
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <img
-                      src={image.element.src}
-                      alt="Comprovante original"
-                      className="max-w-full h-auto rounded-lg border shadow-sm"
-                      style={{ maxHeight: '300px' }}
+                {!image ? (
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
+                    <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                    <p className="text-gray-600 mb-4">Clique para enviar um comprovante</p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
                     />
-                    <p className="text-sm text-gray-500 mt-2">Imagem original</p>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Escolher Arquivo
+                    </button>
                   </div>
-
-                  {isProcessing && (
-                    <div className="text-center py-4">
-                      <div className="inline-flex items-center gap-2 text-blue-600">
-                        <div className="loading-spinner h-4 w-4 border-blue-600"></div>
-                        Processando imagem...
-                      </div>
+                ) : (
+                  <div className="space-y-4">
+                    <button
+                      onClick={resetAll}
+                      className="mb-4 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Trocar Imagem
+                    </button>
+                    
+                    <div className="text-center">
+                      <p className="text-sm text-gray-600 mb-2">
+                        💡 Clique nos campos da imagem para editá-los
+                      </p>
                     </div>
-                  )}
+                  </div>
+                )}
+              </div>
 
-                  {detectedTexts.length > 0 && (
-                    <div className="space-y-4">
-                      <h3 className="font-semibold text-gray-700 flex items-center gap-2">
-                        <Wand2 className="h-5 w-5" />
-                        Modificações
-                      </h3>
+              {/* Painel de Edição Interativa */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-semibold text-gray-800 flex items-center gap-2">
+                    <Edit3 className="text-green-600" />
+                    Edição Interativa
+                  </h2>
+                  {image && editableFields.length > 0 && (
+                    <button
+                      onClick={generatePreview}
+                      disabled={isProcessing}
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          Processando...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4" />
+                          Gerar Preview
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {image ? (
+                  <div className="relative">
+                    {isProcessing && (
+                      <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 rounded-lg">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                          <p className="text-gray-600">Processando...</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div 
+                      ref={imageContainerRef}
+                      className="relative inline-block"
+                      style={{ maxWidth: '100%' }}
+                    >
+                      <img
+                        src={image.src}
+                        alt="Comprovante"
+                        className="max-w-full h-auto rounded-lg border shadow-sm"
+                        style={{ maxHeight: '600px' }}
+                      />
                       
-                      <div className="space-y-3">
-                        <div>
-                          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-                            <DollarSign className="h-4 w-4" />
-                            Valor
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Ex: 2.500,00"
-                            value={modifications.value}
-                            onChange={(e) => setModifications(prev => ({ ...prev, value: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-                            <Calendar className="h-4 w-4" />
-                            Data (formato detectado: {dateFormat})
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Ex: 28/07/2025"
-                            value={modifications.date}
-                            onChange={(e) => setModifications(prev => ({ ...prev, date: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-                            <User className="h-4 w-4" />
-                            Nome
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Ex: MARIA SANTOS"
-                            value={modifications.name}
-                            onChange={(e) => setModifications(prev => ({ ...prev, name: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex gap-3">
-                        <button
-                          onClick={applyModifications}
-                          disabled={isProcessing}
-                          className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      {/* Campos editáveis sobrepostos */}
+                      {editableFields.map((field) => (
+                        <div
+                          key={field.id}
+                          className={`absolute cursor-pointer transition-all duration-200 ${
+                            selectedField === field.id 
+                              ? 'bg-blue-200 bg-opacity-50 border-2 border-blue-500' 
+                              : 'hover:bg-yellow-200 hover:bg-opacity-30 border border-transparent'
+                          }`}
+                          style={{
+                            left: `${field.x}px`,
+                            top: `${field.y - field.height}px`,
+                            width: `${field.width}px`,
+                            height: `${field.height}px`,
+                          }}
+                          onClick={() => handleFieldClick(field)}
+                          title={`Clique para editar: ${field.text}`}
                         >
-                          {isProcessing ? (
-                            <>
-                              <div className="loading-spinner h-4 w-4 border-white"></div>
-                              Processando...
-                            </>
-                          ) : (
-                            <>
-                              <Wand2 className="h-4 w-4" />
-                              Aplicar
-                            </>
+                          {editingField === field.id && (
+                            <div className="absolute -top-12 left-0 bg-white border border-gray-300 rounded-lg shadow-lg p-2 z-20 min-w-48">
+                              <div className="flex gap-2">
+                                <input
+                                  ref={inputRef}
+                                  type="text"
+                                  value={tempValue}
+                                  onChange={(e) => setTempValue(e.target.value)}
+                                  onKeyDown={handleKeyPress}
+                                  className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  style={{
+                                    fontSize: `${field.fontSize}px`,
+                                    fontFamily: field.fontFamily,
+                                    textAlign: field.textAlign
+                                  }}
+                                />
+                                <button
+                                  onClick={handleFieldUpdate}
+                                  className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                                >
+                                  <Check className="h-3 w-3" />
+                                </button>
+                                <button
+                                  onClick={handleFieldCancel}
+                                  className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
                           )}
-                        </button>
-                        
-                        <button
-                          onClick={resetAll}
-                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
-                          Reset
-                        </button>
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Painel de Resultado */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
-                <Download className="text-green-600" />
-                Resultado
-              </h2>
-
-              {modifiedImage ? (
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <img
-                      src={modifiedImage}
-                      alt="Comprovante modificado"
-                      className="max-w-full h-auto rounded-lg border shadow-sm"
-                      style={{ maxHeight: '400px' }}
-                    />
-                    <p className="text-sm text-gray-500 mt-2">Comprovante modificado</p>
                   </div>
-
+                ) : (
+                  <div className="text-center py-12 text-gray-500">
+                    <Edit3 className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+                    <p>Envie uma imagem para começar a editar</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Painel de Preview */
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-semibold text-gray-800 flex items-center gap-2">
+                  <Download className="text-green-600" />
+                  Preview do Resultado
+                </h2>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowPreview(false)}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Voltar para Edição
+                  </button>
                   <button
                     onClick={downloadImage}
-                    className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                   >
-                    <Download className="h-5 w-5" />
-                    Baixar Comprovante Modificado
+                    <Download className="h-4 w-4" />
+                    Baixar Comprovante
                   </button>
                 </div>
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <Download className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-                  <p>O comprovante modificado aparecerá aqui</p>
-                </div>
-              )}
+              </div>
+
+              <div className="text-center">
+                {previewImage && (
+                  <img
+                    src={previewImage}
+                    alt="Comprovante modificado"
+                    className="max-w-full h-auto rounded-lg border shadow-sm mx-auto"
+                    style={{ maxHeight: '80vh' }}
+                  />
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Canvas oculto para processamento */}
           <canvas ref={canvasRef} className="hidden" />
 
-          {/* Informações sobre o projeto */}
-          <div className="mt-12 bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">Como usar:</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
+          {/* Instruções */}
+          <div className="mt-8 bg-white rounded-xl shadow-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Como usar:</h3>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600">
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</div>
                 <div>
-                  <p className="font-medium">Envie o comprovante</p>
-                  <p>Faça upload da imagem do comprovante que deseja modificar</p>
+                  <p className="font-medium">Upload</p>
+                  <p>Envie a imagem do comprovante</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</div>
                 <div>
-                  <p className="font-medium">Configure as modificações</p>
-                  <p>Preencha os campos que deseja alterar (valor, data ou nome)</p>
+                  <p className="font-medium">Clique nos campos</p>
+                  <p>Clique diretamente nos textos que quer editar</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</div>
                 <div>
-                  <p className="font-medium">Baixe o resultado</p>
-                  <p>Clique em "Aplicar" e depois baixe o comprovante modificado</p>
+                  <p className="font-medium">Edite</p>
+                  <p>Digite o novo valor e confirme com Enter</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">4</div>
+                <div>
+                  <p className="font-medium">Baixe</p>
+                  <p>Gere o preview e baixe o resultado</p>
                 </div>
               </div>
             </div>
